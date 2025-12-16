@@ -1,20 +1,30 @@
 import runpod
-from server import llm  # reuse loaded model
-from vllm import SamplingParams
+from vllm import LLM, SamplingParams
+
+# Load model once per worker
+llm = LLM(
+    model="meta-llama/Meta-Llama-3.1-8B-Instruct",
+    quantization="awq"
+)
 
 def handler(event):
-    prompt = event.get("prompt", "")
-    max_tokens = event.get("max_tokens", 300)
-    temperature = event.get("temperature", 0.7)
+    input_data = event.get("input", {})
+    prompt = input_data.get("prompt", "")
+    max_tokens = min(input_data.get("max_tokens", 256), 256)
+    temperature = min(input_data.get("temperature", 0.7), 1.0)
 
     params = SamplingParams(
         max_tokens=max_tokens,
-        temperature=temperature,
+        temperature=temperature
     )
 
-    result = llm.generate(prompt, params)
-    text = result[0].outputs[0].text
+    outputs = llm.generate(prompt, params)
+    text = outputs[0].outputs[0].text
 
-    return {"response": text}
+    return {
+        "output": text
+    }
 
-runpod.serverless.start({"handler": handler})
+runpod.serverless.start({
+    "handler": handler
+})
